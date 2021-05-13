@@ -40,6 +40,11 @@ while(key == 1){
 
   pops = split(pop[pop$alive==1, -c(5, 9:10)], pop$species)
   print( lapply( pops, summary )[-1] )
+	
+  print( paste( "Living units of species 1:", nrow(pop[pop$alive==1 & pop$species==1,] )) )
+  print( paste( "Living units of species 2:", nrow(pop[pop$alive==1 & pop$species==2,] )) )
+  print( paste( "Living units of species 3:", nrow(pop[pop$alive==1 & pop$species==3,] )) )
+  print( paste( "Living units of species 4:", nrow(pop[pop$alive==1 & pop$species==4,] )) )	
 
   pop[pop$alive==1, 6] = 0  #clear food
 
@@ -111,7 +116,7 @@ for(i in 1:4){
     coeff1 = pop[pop$alive==1 & pop$species==i,][j, 1]*pop[pop$alive==1 & pop$species==i,][j, 6]
     coeff2 = pop[pop$alive==1 & pop$species==i,][j+1, 1]*pop[pop$alive==1 & pop$species==i,][j+1, 6]
 
-    nkids = 1 + sqrt(min(coeff1, coeff2))
+    nkids = as.integer( 1 + sqrt(min(coeff1, coeff2)) )
 
     pop[pop$alive==1 & pop$species==i,][j, 8] = pop[pop$alive==1 & pop$species==i,][j, 8] + nkids
     pop[pop$alive==1 & pop$species==i,][j+1, 8] = pop[pop$alive==1 & pop$species==i,][j+1, 8] + nkids
