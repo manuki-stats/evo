@@ -11,42 +11,36 @@ pop = data.frame( fertility = ind1, strength = ind1, mutability = ind1,
 
 #bonus points per species
 
-pop[pop$species==1, 1] = 1.5  #fertility
-pop[pop$species==2, 2] = 1.5  #strength
-pop[pop$species==3, 3] = 1.5  #mutability
-pop[pop$species==4, 4] = 1.5  #teamwork
+for(i in 1:4)
+  pop[pop$species==i, i] = 1.5
 
 key = 1
 
 while(key == 1){
 
-  num_alive = nrow(pop[pop$alive==1,])  #count the living
+  pop = sorting(pop)  #put them at the top, reshuffled (a way to simulate random encounters between the living units)
 
-  pop = sorting(pop, num_alive)  #put them at the top, reshuffled (a way to simulate random encounters between the living units)
+  pop[pop$alive==1,] = day(pop[pop$alive==1,])
 
-  pop = day(pop, num_alive)
+  pop$alive[pop$hunger==2] = 0  #kill the hungry
 
-  pop[pop$hunger==2, 9] = 0  #kill the hungry
+  pop = sorting(pop)
 
-  num_alive = nrow(pop[pop$alive==1,])
-
-  pop = sorting(pop, num_alive)
-
-  pop = night_sort(pop)  #regroup by species (for reproduction)
+  pop[pop$alive==1,] = sort_species(pop[pop$alive==1,])  #regroup by species (for reproduction)
   
   pop = night(pop)
 
-  pop[pop$alive==1, 10] = pop[pop$alive==1, 10] + 1  #update age
+  pop$age[pop$alive==1] = pop$age[pop$alive==1] + 1  #update age
 
   pops = split(pop[pop$alive==1, -c(5, 9:10)], pop$species)
   print( lapply( pops, summary )[-1] )
-	
-  print( paste( "Living units of species 1:", nrow(pop[pop$alive==1 & pop$species==1,] )) )
-  print( paste( "Living units of species 2:", nrow(pop[pop$alive==1 & pop$species==2,] )) )
-  print( paste( "Living units of species 3:", nrow(pop[pop$alive==1 & pop$species==3,] )) )
-  print( paste( "Living units of species 4:", nrow(pop[pop$alive==1 & pop$species==4,] )) )	
 
-  pop[pop$alive==1, 6] = 0  #clear food
+  print( paste( "Living units of species 1:", nrow( pop[pop$alive==1 & pop$species==1,] ) ) )
+  print( paste( "Living units of species 2:", nrow( pop[pop$alive==1 & pop$species==2,] ) ) )
+  print( paste( "Living units of species 3:", nrow( pop[pop$alive==1 & pop$species==3,] ) ) )
+  print( paste( "Living units of species 4:", nrow( pop[pop$alive==1 & pop$species==4,] ) ) )	
+
+  pop$food[pop$alive==1] = 0  #clear food
 
   key = as.integer( readline("Press 1 to repeat") )
   
@@ -55,55 +49,63 @@ while(key == 1){
 }  #end of the game
 
 
-day = function(pop, num_alive){
+day = function(pop_alive){
+
+num_alive = nrow(pop_alive)
 
 index = seq(1, num_alive-1, by=2)  #the last one doesn't "play" if num_alive is odd
 
 for(i in index){
 
-#if the two units belong to different species they fight
+  #if the two units belong to different species they fight
 
-if( ! pop[pop$alive==1,][i, 5] == pop[pop$alive==1,][i+1, 5] ){
+  if( ! pop_alive$species[i] == pop_alive$species[i+1] ){
   
-  ber = sample(0:1, 1)
+    ber = sample(0:1, 1)
 
-  #same strength: growth by pressure
+    #same strength: growth by pressure
 
-  if( pop[pop$alive==1,][i, 2] == pop[pop$alive==1,][i+1, 2] )
-    pop[pop$alive==1,][i+ber, 2] = pop[pop$alive==1,][i+ber, 2] + .1
+    pop_alive$strength[i+ber] = pop_alive$strength[i+ber] + .1*( pop_alive$strength[i] == pop_alive$strength[i+1] )
 	
-  #winner takes one piece of food, loser gets a little hungry (tried to avoid some ifs here, but it's probably worse this way)
+    #winner takes one piece of food, loser gets a little hungry
 
-  pop[pop$alive==1,][i:(i+1),][ pop[pop$alive==1,][i:(i+1),][,2] == max(pop[pop$alive==1,][i:(i+1),][,2]), 6 ] = 1
-  pop[pop$alive==1,][i:(i+1),][ pop[pop$alive==1,][i:(i+1),][,2] == min(pop[pop$alive==1,][i:(i+1),][,2]), 6 ] = 0
+    stronger = which.max(pop_alive$strength[i:(i+1)])
+    weaker = which.min(pop_alive$strength[i:(i+1)])
 
-  pop[pop$alive==1,][i:(i+1),][ pop[pop$alive==1,][i:(i+1),][,2] == max(pop[pop$alive==1,][i:(i+1),][,2]), 7 ] = 0
-  pop[pop$alive==1,][i:(i+1),][ pop[pop$alive==1,][i:(i+1),][,2] == min(pop[pop$alive==1,][i:(i+1),][,2]), 7 ] = pop[pop$alive==1,][i:(i+1),][pop[pop$alive==1,][i:(i+1),][,2] == min(pop[pop$alive==1,][i:(i+1),][,2]), 7] + 1
+    stronger_wins = rbinom( 1, 1, max(pop_alive$strength[i:(i+1)])/sum(pop_alive$strength[i:(i+1)]) )
 
-  }
+    pop_alive$food[i:(i+1)][stronger] = 1*stronger_wins
+    pop_alive$food[i:(i+1)][weaker] = 1 - 1*stronger_wins
+  
+    pop_alive$hungry[i:(i+1)][stronger] = 1 - 1*stronger_wins
+    pop_alive$hungry[i:(i+1)][weaker] = 1*stronger_wins
 
-#same species: cooperation
+    }
 
-if( pop[pop$alive==1,][i, 5] == pop[pop$alive==1,][i+1, 5] ){
+  #same species: cooperation
 
-  pop[pop$alive==1,][c(i, i+1), 6] = as.integer( ( 1 + min( pop[pop$alive==1,][i, 4], pop[pop$alive==1,][i, 4] ) )/2 )
+  else{
 
-  #giving a certain amount of food to both, clearing their hunger
+    pop_alive$food[i:(i+1)] = as.integer( ( 1 + min( pop_alive$teamwork[i], pop_alive$teamwork[i+1] ) )/2 )
 
-  pop[pop$alive==1,][c(i, i+1), 7] = 0
+    #giving a certain amount of food to both, clearing their hunger
 
-  }
+    pop_alive$hungry[i:(i+1)] = 0
 
-}  #end of for cycle
+    }
 
-return(pop)
+  }  #end of for cycle
+
+return(pop_alive)
 
 }  #end of the day
 
 
 night = function(pop){
 
-nums = c( nrow(pop[pop$alive==1 & pop$species==1,]), nrow(pop[pop$alive==1 & pop$species==2,]), nrow(pop[pop$alive==1 & pop$species==3,]), nrow(pop[pop$alive==1 & pop$species==4,]) )
+pop_alive = pop[pop$alive==1,]
+nums = table(pop_alive$species)
+num_alive = sum(nums)
 
 #counting the living population for each group
 
@@ -113,42 +115,44 @@ for(i in 1:4){
 
   for(j in index){
 
-    coeff1 = pop[pop$alive==1 & pop$species==i,][j, 1]*pop[pop$alive==1 & pop$species==i,][j, 6]
-    coeff2 = pop[pop$alive==1 & pop$species==i,][j+1, 1]*pop[pop$alive==1 & pop$species==i,][j+1, 6]
+    coeff1 = pop_alive$fertility[pop_alive$species==i][j]*pop_alive$food[pop_alive$species==i][j]
+    coeff2 = pop_alive$fertility[pop_alive$species==i][j+1]*pop_alive$food[pop_alive$species==i][j+1]
 
     nkids = as.integer( 1 + sqrt(min(coeff1, coeff2)) )
 
-    pop[pop$alive==1 & pop$species==i,][j, 8] = pop[pop$alive==1 & pop$species==i,][j, 8] + nkids
-    pop[pop$alive==1 & pop$species==i,][j+1, 8] = pop[pop$alive==1 & pop$species==i,][j+1, 8] + nkids
+    pop_alive$offspring[pop_alive$species==i][j:(j+1)] = pop_alive$offspring[pop_alive$species==i][j:(j+1)] + nkids
 
     # ^ just an arbitrary formula to determine the number of kids each couple gets, depending on food and fertility
 
     for(x in 1:nkids)
-      pop[rowSums(pop)==0,][1,] = birth( pop[pop$alive==1 & pop$species==i,][j,], pop[pop$alive==1 & pop$species==i,][j+1,] )
+      pop[rowSums(pop)==0,][1,] = birth( pop_alive[pop_alive$species==i,][j,], pop_alive[pop_alive$species==i,][j+1,] )
 
     p = sample(1:4, 1)  #random mutations
 
-    pop[pop$alive==1 & pop$species==i,][j, p] = pop[pop$alive==1 & pop$species==i,][j, p] + as.integer( rbinom(1, 1, .25)*pop[pop$alive==1 & pop$species==i,][j, 3] )/10
+    pop_alive[pop_alive$species==i,][j, p] = pop_alive[pop_alive$species==i,][j, p] + as.integer( rbinom(1, 1, .25)*pop_alive$mutability[pop_alive$species==i][j] )/10
 
     p = sample(1:4, 1)
 
-    pop[pop$alive==1 & pop$species==i,][j+1, p] = pop[pop$alive==1 & pop$species==i,][j+1, p] + as.integer( rbinom(1, 1, .25)*pop[pop$alive==1 & pop$species==i,][j+1, 3] )/10
+    pop_alive[pop_alive$species==i,][j, p] = pop_alive[pop_alive$species==i,][j+1, p] + as.integer( rbinom(1, 1, .25)*pop_alive$mutability[pop_alive$species==i][j+1] )/10
 
     }
 
   }
+
+pop[1:num_alive,] = pop_alive
 
 return(pop)
 
 }  #end of the night
 
 
-sorting = function(pop, num_alive)
+sorting = function(pop){
+  num_alive = nrow(pop[pop$alive==1,])
   return( rbind( pop[pop$alive==1,][sample(1:num_alive),], pop[pop$alive==0,] ) )
+  }
 
-
-night_sort = function(pop)
-  return( rbind( pop[pop$alive==1,][order(pop[pop$alive==1,]$species),], pop[pop$alive==0,] ) )
+sort_species = function(pop_alive)
+  return( pop_alive[order(pop_alive$species),] )
 
 
 birth = function(p1, p2){
@@ -161,8 +165,7 @@ birth = function(p1, p2){
   kid[5] = p1[5]  #hopefully it's the same as p2[5]
   kid[c(7:8, 10)] = 0
 
-  return(kid)
+  return( as.vector( as.numeric(kid) ) )
 	
   }  #kids hereditate their parents' genes
-
 
